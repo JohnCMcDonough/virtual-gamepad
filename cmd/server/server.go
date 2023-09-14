@@ -23,7 +23,6 @@ import (
 var httpStaticContent embed.FS
 
 func main() {
-
 	// Create signals channel to run server until interrupted
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
@@ -77,6 +76,18 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
+
+	if _, err := os.Stat("/run/udev/control"); os.IsNotExist(err) {
+		server.Log.Warn().Msg("The /run/udev/control file does not exist. Currently running applications may not receive events correctly. Creating...")
+		if err = os.MkdirAll("/run/udev", 0o666); err != nil {
+			server.Log.Err(err).Msg("Failed to create directory /run/udev")
+		}
+		if _, err = os.Create("/run/udev/control"); err != nil {
+			server.Log.Err(err).Msg("Failed to create file /run/udev/control")
+		} else {
+			server.Log.Info().Msg("Created /run/udev/control successfully!")
+		}
+	}
 
 	<-done
 	cancelFn()
