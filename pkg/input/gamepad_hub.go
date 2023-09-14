@@ -1,3 +1,6 @@
+//go:build linux
+// +build linux
+
 package input
 
 import (
@@ -20,6 +23,10 @@ var shouldCreateGamepads = stringShouldCreateGamepads != "false"
 
 type GamepadHub struct {
 	gamepads [MAX_GAMEPADS]uinput.Gamepad
+	vendorId uint16
+	deviceId uint16
+	// sock     io.ReadWriteCloser
+	// enc      *uevent.Encoder
 	mqtt.HookBase
 }
 
@@ -35,14 +42,46 @@ func (h *GamepadHub) Provides(b byte) bool {
 
 func (h *GamepadHub) Init(config any) error {
 	h.Log.Info().Msg("GamepadHub Initialized")
+
+	var err error
+
+	// h.sock, err = uevent.NewSocket()
+
+	if err != nil {
+		h.Log.Err(err).Msg("There was an error opening the udev socket")
+		return err
+	}
+
+	// h.enc = uevent.NewEncoder(h.sock)
+
+	vendorIdString := os.Getenv("VIRT_DEVICE_ID")
+	deviceIdString := os.Getenv("VIRT_DEVICE_VENDOR")
+
+	if vendorIdString != "" {
+		i, err := strconv.ParseInt(vendorIdString, 10, 16)
+		if err != nil {
+			h.vendorId = uint16(i)
+		} else {
+			h.vendorId = 3
+		}
+	}
+	if deviceIdString != "" {
+		i, err := strconv.ParseInt(deviceIdString, 10, 16)
+		if err != nil {
+			h.deviceId = uint16(i)
+		} else {
+			h.deviceId = 4
+		}
+	}
+
 	if shouldCreateGamepads {
 		for i := 0; i < len(h.gamepads); i++ {
-			gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), 0x03, 0x04)
+			gamepad, err := createGamepad(h, i)
 			if err != nil {
 				h.Log.Error().Err(err).Msg("Failed to create gamepad... aborting")
 				for j := i - 1; j >= 0; j-- {
 					h.Log.Error().Msg(fmt.Sprintf("Closing gamepad %d", j))
-					h.gamepads[i].Close()
+					closeGamepad(h, i)
 				}
 				return err
 			}
@@ -53,6 +92,26 @@ func (h *GamepadHub) Init(config any) error {
 	}
 
 	return nil
+}
+
+func closeGamepad(h *GamepadHub, i int) error {
+	err := h.gamepads[i].Close()
+
+	return err
+}
+
+func createGamepad(h *GamepadHub, i int) (uinput.Gamepad, error) {
+	gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), h.vendorId, h.deviceId)
+	if err != nil {
+		return nil, err
+	}
+
+	// dev := unix.Mkdev();
+	// syscall.Mknod(path, mode, dev)
+
+	// uevent := uevent.NewUEvent("add", "")
+
+	return gamepad, nil
 }
 
 func (h *GamepadHub) Stop() error {
