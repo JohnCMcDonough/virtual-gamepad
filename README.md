@@ -4,7 +4,7 @@ The purpose of this repo is to handle the creation of virtual gamepad devices in
 
 This code aims to utilize the same `uinput` and `udev` APIs to work with existing software for discovering these virtual gamepads.
 
-# Basic Overview of Components
+## Basic Overview of Components
 ```mermaid
 sequenceDiagram
   autonumber
@@ -32,7 +32,7 @@ sequenceDiagram
   end
 ```
 
-## 1. Connect
+### 1. Connect
 
 Our application starts up, and opens a connection to the Kernel. This connection will be used to receive events when devices are created. The reason we need this, is that we can't simply emit events directly without knowing the device information assigned by the Kernel. As far as I know, the only way of receiving this information is to listen for those Kevents sent by the kernel. Opening this socket looks like this:
 
@@ -66,7 +66,7 @@ if err = syscall.Bind(c.Fd, &c.Addr); err != nil {
 
 Crucially, one other thing that we need to do is create the `/run/udev` directory, and create a `/run/udev/control` file. These files aren't used for anything, but the libudev library checks for the existence of these files to ensure that an instance of udev is running. It never reads to or writes to this file, only checks for its existence before subscribing to udev events.
 
-## 2. Connect (Application Side)
+### 2. Connect (Application Side)
 
 Similar to how we subscribe to the Kernel group to receive device events over the netlink socket, applications normally subscribe to the Udev group.
 
@@ -74,7 +74,7 @@ Udevd is the userspace program that typically listens to these events from the k
 
 In our case, we're aiming to replace much of this userspace program's functionality. We have to do some trickery in order to get `libudev` to actually believe that there's a running udev instance and make the subscription. We do this by `touch`ing the `/run/udev/control` file.
 
-## 3. Create a gamepad using /dev/uinput
+### 3. Create a gamepad using /dev/uinput
 
 The /dev/uinput interface serves as a user-space API for creating and managing input devices at the kernel level. In essence, it enables you to create virtual input devices such as keyboards, mice, joysticks, or gamepads that the operating system treats as actual hardware devices. In order to use this interface, we need to bind through the host's interface.
 
@@ -82,11 +82,11 @@ The /dev/uinput interface serves as a user-space API for creating and managing i
 
 Regardless, by writing ioctl commands to this device, we can create a Virtual Gamepad.
 
-## 4. Kernel — Load gamepad driver and populate /sys directory
+### 4. Kernel — Load gamepad driver and populate /sys directory
 
 The Kernel takes those ioctl commands, and loads the appropriate input driver. I'm not sure exactly how all of that happens, but it then creates the /sys directory entry for that device, in `/sys/devices/virtual/input/`. Unfortunately, this stage is **_NOT_** restricted to your container. The /sys entry is created in every container, and on the host. Additionally, the events emitted in the next step are also emitted to everyone. This means that if your host is running `udevd` (which it likely is), those virtual devices will show up on your host. We're investigating ways of preventing this, but for now... virtual devices created in your container will show up on the host as well.
 
-## 5. Broadcast Kevent
+### 5. Broadcast Kevent
 
 When a device is connected, the kernel writes a message that looks something like this over the netlink socket we're subscribed to.
 It's a series of strings that represents device information. It always begins with a header that sigals what the `ACTION` is and on what `DEVPATH` it occurs on.
@@ -104,11 +104,11 @@ MAJOR=13\0
 MINOR=34\0
 ```
 
-## 6. Receive device created Kevent
+### 6. Receive device created Kevent
 
 Our application receives and parses the message sent from the kernel. This gets it ready for step 7.
 
-## 7. Map device to a local path
+### 7. Map device to a local path
 
 Now that we have the device major and minor number, we can map this to a file in our container. When determining if we should process a message from the given `<DEVNAME>`, we compare it to the syspath queried using `ioctl` for our gamepad.
 
@@ -118,11 +118,11 @@ Additionally, we need to map not just the legacy `jsX` devices, but also the `ev
 
 If we find a match, we know that the device belongs to us. If it's a legacy `jsX` device, we'll map it to it's index in our gamepad hub. Both of these devices are mapped to `/dev/input/js0-3`, or `/dev/input/eventXYZ`.
 
-## 8. Call mknod with the device's major and minor version
+### 8. Call mknod with the device's major and minor version
 
 Once we've mapped it to the desired path, we'll make syscalls equivalent to `mknod c <major> <minor> /dev/input/jsX` and `mknod c <major> <minor> /dev/input/eventXYZ`.
 
-## 9. Resend the Kernel's event as a Udev event
+### 9. Resend the Kernel's event as a Udev event
 
 After we create the local device path using mknod, we can modify and resend the events using the udev format. This is an internal format used only by udevd and libudev. The format of this additional message looks something like this:
 
@@ -165,10 +165,17 @@ MAJOR=13\0
 MINOR=34\0
 ```
 
-## 10. Application Receives a notification from "udevd"
+### 10. Application Receives a notification from "udevd"
 
 Now that we've forged our udev message, the application subscribed should receive it, and treat it as though it was a real message emitted from udevd.
 
-## 11. Application opens virtual device
+### 11. Application opens virtual device
 
 From the DEVPATH extracted from the received message, the corresponding `libevdev` or legacy uapi `joystick` library. Once connected to that device, the application should be able to use it as normal.
+
+## Helpful References
+
+https://documentation.suse.com/sles/12-SP5/html/SLES-all/cha-udev.html
+https://insujang.github.io/2018-11-27/udev-device-manager-for-the-linux-kernel-in-userspace/
+https://github.com/systemd/systemd/blob/main/src/libudev/libudev-monitor.c
+https://github.com/pilebones/go-udev

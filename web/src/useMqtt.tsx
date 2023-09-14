@@ -10,7 +10,8 @@ export const MQTTConnectionProvider: React.FunctionComponent<React.PropsWithChil
   const [value, setValue] = useState<ContextValue>(null);
   useEffect(() => {
     if (!value) {
-      let url = `wss://100.64.0.12:8080/`;
+      // eslint-disable-next-line no-restricted-globals
+      let url = `wss://${location.hostname}:8081/`;
       // let url = `wss://localhost:8080/`;
       if (window.location.protocol.indexOf('https:') !== 0) {
         url = url.replace('wss:', 'ws:');

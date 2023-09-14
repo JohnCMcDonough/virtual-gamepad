@@ -21,3 +21,6 @@
 go.work
 
 bin/**
+
+# Directory where static files are copied
+cmd/server/build

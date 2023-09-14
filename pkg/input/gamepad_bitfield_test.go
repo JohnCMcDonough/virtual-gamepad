@@ -7,6 +7,7 @@ import (
 	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"math"
 	"testing"
 )
 
@@ -18,8 +19,13 @@ func TestUnmarshalBinary(t *testing.T) {
 		wantField *GamepadBitfield
 	}{
 		{
-			name:    "Invalid payload size",
-			data:    []byte{0, 0},
+			name:    "Invalid payload size (too small)",
+			data:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
+			wantErr: true,
+		},
+		{
+			name:    "Invalid payload size (too large)",
+			data:    []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0},
 			wantErr: true,
 		},
 		{
@@ -28,12 +34,12 @@ func TestUnmarshalBinary(t *testing.T) {
 				data := make([]byte, 26)
 				data[0] = 0b10101010
 				data[1] = 0b01010101
-				binary.LittleEndian.PutUint32(data[2:6], 0x41280000) // 10.5 in float32
-				binary.LittleEndian.PutUint32(data[6:10], 0x0)       // 0.0 in float32
-				binary.LittleEndian.PutUint32(data[10:14], 0x0)      // 0.0 in float32
-				binary.LittleEndian.PutUint32(data[14:18], 0x0)      // 0.0 in float32
-				binary.LittleEndian.PutUint32(data[18:22], 0x0)      // 0.0 in float32
-				binary.LittleEndian.PutUint32(data[22:26], 0x0)      // 0.0 in float32
+				binary.LittleEndian.PutUint32(data[2:6], 0x41280000)                // 10.5 in float32
+				binary.LittleEndian.PutUint32(data[6:10], math.Float32bits(11.5))   // 11.5 in float32
+				binary.LittleEndian.PutUint32(data[10:14], math.Float32bits(14.5))  // 14.5 in float32
+				binary.LittleEndian.PutUint32(data[14:18], math.Float32bits(16.89)) // 16.89 in float32
+				binary.LittleEndian.PutUint32(data[18:22], math.Float32bits(128.3)) // 128.3 in float32
+				binary.LittleEndian.PutUint32(data[22:26], 0x0)                     // 0.0 in float32
 				fmt.Printf("Hex value is %s", hex.EncodeToString(data))
 				return data
 			}(),
@@ -55,10 +61,10 @@ func TestUnmarshalBinary(t *testing.T) {
 				ButtonDpadRight:   false,
 				ButtonMode:        true,
 				AxisLeftX:         10.5,
-				AxisLeftY:         0,
-				AxisRightX:        0,
-				AxisRightY:        0,
-				AxisLeftTrigger:   0,
+				AxisLeftY:         11.5,
+				AxisRightX:        14.5,
+				AxisRightY:        16.89,
+				AxisLeftTrigger:   128.3,
 				AxisRightTrigger:  0,
 			},
 		},
