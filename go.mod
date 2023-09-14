@@ -3,7 +3,7 @@ module github.com/JohnCMcDonough/virtual-gamepad
 go 1.21.0
 
 require (
-	github.com/JohnCMcDonough/uinput v0.0.0-20230828041927-ea468e53162a
+	github.com/JohnCMcDonough/uinput v0.0.0-20230829030045-7acefc4211da
 	github.com/mochi-mqtt/server/v2 v2.3.0
 	github.com/pilebones/go-udev v0.9.0
 )

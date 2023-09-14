@@ -59,7 +59,6 @@ func NewGamepadWatcher(ctx context.Context, hub *GamepadHub) *GamepadWatcher {
 //		USEC_INITIALIZED:1492905162910
 //	]
 func (w *GamepadWatcher) ProcessEvent(ctx context.Context, evt netlink.UEvent) error {
-	time.Sleep(time.Second * 1)
 	if evt.Action != netlink.ADD {
 		return nil
 	}

@@ -11,20 +11,19 @@ import (
 	"regexp"
 	"strconv"
 	"sync"
-	"time"
 
 	"github.com/JohnCMcDonough/uinput"
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
 )
 
-const MAX_GAMEPADS = 4
+var MAX_GAMEPADS int = 4
 
 var stringShouldCreateGamepads, _ = os.LookupEnv("CREATE_GAMEPADS")
 var shouldCreateGamepads = stringShouldCreateGamepads != "false"
 
 type GamepadHub struct {
-	gamepads [MAX_GAMEPADS]uinput.Gamepad
+	gamepads []uinput.Gamepad
 	VendorId uint16
 	DeviceId uint16
 	lock     sync.Mutex
@@ -40,7 +39,14 @@ func (h *GamepadHub) ID() string {
 func (h *GamepadHub) Provides(b byte) bool {
 	return bytes.Contains([]byte{
 		mqtt.OnPublish,
+		mqtt.OnConnect,
 	}, []byte{b})
+}
+
+// OnConnect is called when a new client connects.
+func (h *GamepadHub) OnConnect(cl *mqtt.Client, pk packets.Packet) error {
+	h.Log.Info().Msgf("Received mqtt connection from %v", cl.Net.Conn.RemoteAddr().String())
+	return nil
 }
 
 func (h *GamepadHub) GetGamepads() []uinput.Gamepad {
@@ -87,7 +93,6 @@ func (h *GamepadHub) Init(config any) error {
 		for i := 0; i < len(h.gamepads); i++ {
 			h.lock.Lock()
 			gamepad, err := createGamepad(h, i)
-			time.Sleep(time.Second * 1)
 			if err != nil {
 				h.Log.Error().Err(err).Msg("Failed to create gamepad... aborting")
 				for j := i - 1; j >= 0; j-- {
@@ -193,6 +198,8 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 			gamepad.LeftStickMove(gamepadState.AxisLeftX, gamepadState.AxisLeftY)
 			gamepad.RightStickMove(gamepadState.AxisRightX, gamepadState.AxisRightY)
 			// todo use analog triggers later
+			gamepad.LeftTriggerMove(gamepadState.AxisLeftTrigger)
+			gamepad.RightTriggerMove(gamepadState.AxisRightTrigger)
 			h.setButtonState(gamepad, uinput.ButtonTriggerLeft, gamepadState.AxisLeftTrigger > 0.5)
 			h.setButtonState(gamepad, uinput.ButtonTriggerRight, gamepadState.AxisRightTrigger > 0.5)
 		} else {
@@ -208,6 +215,7 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 
 func NewGamepadHub() *GamepadHub {
 	hub := new(GamepadHub)
+	hub.gamepads = make([]uinput.Gamepad, MAX_GAMEPADS)
 
 	return hub
 }

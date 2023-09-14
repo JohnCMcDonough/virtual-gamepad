@@ -24,7 +24,7 @@ function gamepadStateToBuffer(gamepadState: GamepadState): Buffer {
   buffer[1] |= +gamepadState.ButtonDpadLeft << 4;
   buffer[1] |= +gamepadState.ButtonDpadRight << 5;
 
-  buffer[1] |= +gamepadState.ButtonMode & (1 << 6);
+  buffer[1] |= +gamepadState.ButtonMode << 6;
 
   buffer.writeFloatLE(gamepadState.AxisLeftX, 2);
   buffer.writeFloatLE(gamepadState.AxisLeftY, 6);

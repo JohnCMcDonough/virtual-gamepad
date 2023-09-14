@@ -4,6 +4,8 @@ github.com/JohnCMcDonough/uinput v0.0.0-20230828020413-32c2a1fe1ecf h1:/00n9P/d9
 github.com/JohnCMcDonough/uinput v0.0.0-20230828020413-32c2a1fe1ecf/go.mod h1:kiHqFiOt4tFglF4oGiXf6k+P7NAnLy12ld73iCa7CQc=
 github.com/JohnCMcDonough/uinput v0.0.0-20230828041927-ea468e53162a h1:zBK1EHev6WVE5GhZuafQ8b9SmE683P4m1Wf97Nyg5UQ=
 github.com/JohnCMcDonough/uinput v0.0.0-20230828041927-ea468e53162a/go.mod h1:kiHqFiOt4tFglF4oGiXf6k+P7NAnLy12ld73iCa7CQc=
+github.com/JohnCMcDonough/uinput v0.0.0-20230829030045-7acefc4211da h1:VFKy7KsNzEgWhWWmyTyChhPq/8RnMUC0k1S6A1LMMCQ=
+github.com/JohnCMcDonough/uinput v0.0.0-20230829030045-7acefc4211da/go.mod h1:kiHqFiOt4tFglF4oGiXf6k+P7NAnLy12ld73iCa7CQc=
 github.com/coreos/go-systemd/v22 v22.3.3-0.20220203105225-a9a7ef127534/go.mod h1:Y58oyj3AT4RCenI/lSvhwexgC+NSVTIJ3seZv2GcEnc=
 github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c=
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=

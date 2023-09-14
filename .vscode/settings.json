@@ -1,5 +1,33 @@
 {
   "go.toolsEnvVars": {
     "GOOS": "linux"
-  }
+  },
+  "cSpell.words": [
+    "autonumber",
+    "DEVPATH",
+    "kevent",
+    "Kevent",
+    "Kevents",
+    "KOBJECT",
+    "libudev",
+    "mknod",
+    "netlink",
+    "Netlink",
+    "NETLINK",
+    "PHYSDEVBUS",
+    "PHYSDEVDRIVER",
+    "PHYSDEVPATH",
+    "SEQNUM",
+    "sigals",
+    "Sockaddr",
+    "syscall",
+    "syspath",
+    "udev",
+    "Udev",
+    "udevd",
+    "Udevd",
+    "UEVENT",
+    "usbhid",
+    "userspace"
+  ]
 }
