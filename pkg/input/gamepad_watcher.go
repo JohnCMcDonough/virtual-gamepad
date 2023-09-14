@@ -18,6 +18,8 @@ type GamepadWatcher struct {
 	Hub        *GamepadHub
 	kSocket    *uevent.UdevEventConnection
 	udevSocket *uevent.UdevEventConnection
+
+	mknodPaths []string
 }
 
 func NewGamepadWatcher(ctx context.Context, hub *GamepadHub) *GamepadWatcher {
@@ -85,7 +87,6 @@ func (w *GamepadWatcher) ProcessEvent(ctx context.Context, evt netlink.UEvent) e
 			continue
 		}
 		path, err := gp.FetchSyspath()
-		path += "/js"
 		if err != nil {
 			log.Default().Printf("There was an error fetching Syspath: %v", err)
 			continue
@@ -96,12 +97,27 @@ func (w *GamepadWatcher) ProcessEvent(ctx context.Context, evt netlink.UEvent) e
 		}
 		log.Default().Printf("Found match %v on gamepad %v\n", devPath, path)
 
-		devName := fmt.Sprintf("/dev/input/js%d", i)
+		var devName string
+
+		if strings.HasPrefix(devPath, path+"/js") {
+			log.Default().Printf("Using older joystick api (js0-js3)")
+			devName = fmt.Sprintf("/dev/input/js%d", i)
+		} else if strings.HasPrefix(devPath, path+"/event") {
+			log.Default().Printf("Using newer evdev api (event0-9999)")
+			devName = "/dev/" + evt.Env["DEVNAME"]
+		} else {
+			log.Default().Printf("Unknown device API")
+			return nil
+		}
+
 		dev := unix.Mkdev(uint32(major), uint32(minor))
 		err = syscall.Mknod(devName, syscall.S_IFCHR|0o666, int(dev))
+		log.Default().Printf("Running mknod %v with %o %d:%d", devName, syscall.S_IFCHR|0o666, major, minor)
 		if err != nil {
 			return fmt.Errorf("failed to mknod: %v", err)
 		}
+
+		w.mknodPaths = append(w.mknodPaths, devName)
 
 		uEvt := netlink.UEvent{
 			Action: evt.Action,
@@ -127,6 +143,16 @@ func (w *GamepadWatcher) ProcessEvent(ctx context.Context, evt netlink.UEvent) e
 	}
 
 	return nil
+}
+
+func (w *GamepadWatcher) cleanup() {
+	for _, path := range w.mknodPaths {
+		log.Default().Printf("Cleaning up device path %v\n", path)
+		err := unix.Unlink(path)
+		if err != nil {
+			log.Default().Printf("Failed to delete device path %v\n", path)
+		}
+	}
 }
 
 func (w *GamepadWatcher) Watch(ctx context.Context) error {
@@ -155,6 +181,7 @@ func (w *GamepadWatcher) Watch(ctx context.Context) error {
 		for {
 			select {
 			case <-ctx.Done():
+				w.cleanup()
 				return
 			case event := <-eventChannel:
 				err := w.ProcessEvent(ctx, event)
