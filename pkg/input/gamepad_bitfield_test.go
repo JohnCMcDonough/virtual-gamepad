@@ -45,27 +45,29 @@ func TestUnmarshalBinary(t *testing.T) {
 			}(),
 			wantErr: false,
 			wantField: &GamepadBitfield{
-				ButtonNorth:       false,
-				ButtonSouth:       true,
-				ButtonWest:        false,
-				ButtonEast:        true,
-				ButtonBumperLeft:  false,
-				ButtonBumperRight: true,
-				ButtonThumbLeft:   false,
-				ButtonThumbRight:  true,
-				ButtonSelect:      true,
-				ButtonStart:       false,
-				ButtonDpadUp:      true,
-				ButtonDpadDown:    false,
-				ButtonDpadLeft:    true,
-				ButtonDpadRight:   false,
-				ButtonMode:        true,
-				AxisLeftX:         10.5,
-				AxisLeftY:         11.5,
-				AxisRightX:        14.5,
-				AxisRightY:        16.89,
-				AxisLeftTrigger:   128.3,
-				AxisRightTrigger:  0,
+				ButtonNorth:       false, // (data[0] >> 0) & 1
+				ButtonSouth:       true,  // (data[0] >> 1) & 1
+				ButtonWest:        false, // (data[0] >> 2) & 1
+				ButtonEast:        true,  // (data[0] >> 3) & 1
+				ButtonBumperLeft:  false, // (data[0] >> 4) & 1
+				ButtonBumperRight: true,  // (data[0] >> 5) & 1
+				ButtonThumbLeft:   false, // (data[0] >> 6) & 1
+				ButtonThumbRight:  true,  // (data[0] >> 7) & 1
+
+				ButtonSelect:    true,  // (data[1] >> 0) & 1
+				ButtonStart:     false, // (data[1] >> 1) & 1
+				ButtonDpadUp:    true,  // (data[1] >> 2) & 1
+				ButtonDpadDown:  false, // (data[1] >> 3) & 1
+				ButtonDpadLeft:  true,  // (data[1] >> 4) & 1
+				ButtonDpadRight: false, // (data[1] >> 5) & 1
+				ButtonMode:      true,  // (data[1] >> 6) & 1
+
+				AxisLeftX:        10.5,
+				AxisLeftY:        11.5,
+				AxisRightX:       14.5,
+				AxisRightY:       16.89,
+				AxisLeftTrigger:  128.3,
+				AxisRightTrigger: 0,
 			},
 		},
 	}
