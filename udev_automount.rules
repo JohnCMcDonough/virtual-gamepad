@@ -1,0 +1,19 @@
+#!/bin/bash
+# in /etc/udev/rules.d/udev_automount.rules
+# ACTION=="add", SUBSYSTEM=="input", RUN+="/usr/local/bin/automount_gamepads.sh add /dev/input/%k %M %m"
+# ACTION=="remove", SUBSYSTEM="input", RUN+="/usr/local/bin/automount_gamepads.sh remove /dev/input/%k"
+
+ACTION=$1
+DEVPATH=$2
+MAJOR=$3
+MINOR=$4
+
+set +x
+# If action is equal to add, then we want to mount the device
+if [[ $ACTION == "add" ]]; then
+  echo "Running — mknod $DEVPATH c $MAJOR $MINOR"
+  mknod $DEVPATH c $MAJOR $MINOR
+elif [[ $ACTION == "remove" ]]; then
+  echo "Running — mknod $DEVPATH c $MAJOR $MINOR"
+  unlink $DEVPATH
+fi

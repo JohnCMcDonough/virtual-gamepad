@@ -13,7 +13,7 @@ import (
 	"github.com/mochi-mqtt/server/v2/packets"
 )
 
-const MAX_GAMEPADS = 15
+const MAX_GAMEPADS = 4
 
 var stringShouldCreateGamepads, _ = os.LookupEnv("CREATE_GAMEPADS")
 var shouldCreateGamepads = stringShouldCreateGamepads != "false"
@@ -37,7 +37,7 @@ func (h *GamepadHub) Init(config any) error {
 	h.Log.Info().Msg("GamepadHub Initialized")
 	if shouldCreateGamepads {
 		for i := 0; i < len(h.gamepads); i++ {
-			gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), 0x03, 0x03)
+			gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), 0x03, 0x04)
 			if err != nil {
 				h.Log.Error().Err(err).Msg("Failed to create gamepad... aborting")
 				for j := i - 1; j >= 0; j-- {
@@ -63,11 +63,15 @@ func (h *GamepadHub) Stop() error {
 
 var topicRegex = regexp.MustCompile(`^/gamepad/(\d+)/([^/]+)$`)
 
-func setButtonState(gamepad uinput.Gamepad, key int, pressed bool) {
+func (h *GamepadHub) setButtonState(gamepad uinput.Gamepad, key int, pressed bool) {
+	var err error
 	if pressed {
-		gamepad.ButtonDown(key)
+		err = gamepad.ButtonDown(key)
 	} else {
-		gamepad.ButtonUp(key)
+		err = gamepad.ButtonUp(key)
+	}
+	if err != nil {
+		h.Log.Err(err).Msg(fmt.Sprintf("Unable to set button state for gamepad %d %v", key, pressed))
 	}
 }
 
@@ -77,15 +81,16 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 
 	// evaluate regex and find all matches
 	topicComps := topicRegex.FindStringSubmatch(pk.TopicName)
-	h.Log.Info().Msg(fmt.Sprintf("Handling message for Gamepad ID %s with action %s", topicComps[1], topicComps[2]))
 
 	if topicComps == nil {
 		return pk, nil // the message wasn't meant for us
 	}
 
+	h.Log.Info().Msg(fmt.Sprintf("Handling message for Gamepad ID %s with action %s", topicComps[1], topicComps[2]))
+
 	// get the gamepad id as an int
 	gamepadID, err := strconv.Atoi(topicComps[1])
-	if err != nil || gamepadID < 0 || gamepadID > MAX_GAMEPADS {
+	if err != nil || gamepadID < 0 || gamepadID >= MAX_GAMEPADS {
 		h.Log.Warn().Msg(fmt.Sprintf("Received event for gamepad that doesn't exist %s", topicComps[1]))
 		return pk, nil
 	}
@@ -103,27 +108,27 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 			return pk, nil
 		}
 		if shouldCreateGamepads {
-			setButtonState(gamepad, uinput.ButtonNorth, gamepadState.ButtonNorth)
-			setButtonState(gamepad, uinput.ButtonSouth, gamepadState.ButtonSouth)
-			setButtonState(gamepad, uinput.ButtonWest, gamepadState.ButtonWest)
-			setButtonState(gamepad, uinput.ButtonEast, gamepadState.ButtonEast)
-			setButtonState(gamepad, uinput.ButtonBumperLeft, gamepadState.ButtonBumperLeft)
-			setButtonState(gamepad, uinput.ButtonBumperRight, gamepadState.ButtonBumperRight)
-			setButtonState(gamepad, uinput.ButtonThumbLeft, gamepadState.ButtonThumbLeft)
-			setButtonState(gamepad, uinput.ButtonThumbRight, gamepadState.ButtonThumbRight)
-			setButtonState(gamepad, uinput.ButtonSelect, gamepadState.ButtonSelect)
-			setButtonState(gamepad, uinput.ButtonStart, gamepadState.ButtonStart)
-			setButtonState(gamepad, uinput.ButtonDpadUp, gamepadState.ButtonDpadUp)
-			setButtonState(gamepad, uinput.ButtonDpadDown, gamepadState.ButtonDpadDown)
-			setButtonState(gamepad, uinput.ButtonDpadLeft, gamepadState.ButtonDpadLeft)
-			setButtonState(gamepad, uinput.ButtonDpadRight, gamepadState.ButtonDpadRight)
-			setButtonState(gamepad, uinput.ButtonMode, gamepadState.ButtonMode)
+			h.setButtonState(gamepad, uinput.ButtonNorth, gamepadState.ButtonNorth)
+			h.setButtonState(gamepad, uinput.ButtonSouth, gamepadState.ButtonSouth)
+			h.setButtonState(gamepad, uinput.ButtonWest, gamepadState.ButtonWest)
+			h.setButtonState(gamepad, uinput.ButtonEast, gamepadState.ButtonEast)
+			h.setButtonState(gamepad, uinput.ButtonBumperLeft, gamepadState.ButtonBumperLeft)
+			h.setButtonState(gamepad, uinput.ButtonBumperRight, gamepadState.ButtonBumperRight)
+			h.setButtonState(gamepad, uinput.ButtonThumbLeft, gamepadState.ButtonThumbLeft)
+			h.setButtonState(gamepad, uinput.ButtonThumbRight, gamepadState.ButtonThumbRight)
+			h.setButtonState(gamepad, uinput.ButtonSelect, gamepadState.ButtonSelect)
+			h.setButtonState(gamepad, uinput.ButtonStart, gamepadState.ButtonStart)
+			h.setButtonState(gamepad, uinput.ButtonDpadUp, gamepadState.ButtonDpadUp)
+			h.setButtonState(gamepad, uinput.ButtonDpadDown, gamepadState.ButtonDpadDown)
+			h.setButtonState(gamepad, uinput.ButtonDpadLeft, gamepadState.ButtonDpadLeft)
+			h.setButtonState(gamepad, uinput.ButtonDpadRight, gamepadState.ButtonDpadRight)
+			h.setButtonState(gamepad, uinput.ButtonMode, gamepadState.ButtonMode)
 
 			gamepad.LeftStickMove(gamepadState.AxisLeftX, gamepadState.AxisLeftY)
 			gamepad.RightStickMove(gamepadState.AxisRightX, gamepadState.AxisRightY)
 			// todo use analog triggers later
-			setButtonState(gamepad, uinput.ButtonTriggerLeft, gamepadState.AxisLeftTrigger > 0.5)
-			setButtonState(gamepad, uinput.ButtonTriggerRight, gamepadState.AxisRightTrigger > 0.5)
+			h.setButtonState(gamepad, uinput.ButtonTriggerLeft, gamepadState.AxisLeftTrigger > 0.5)
+			h.setButtonState(gamepad, uinput.ButtonTriggerRight, gamepadState.AxisRightTrigger > 0.5)
 		} else {
 			h.Log.Info().Msg(fmt.Sprintf("Pad %d state — %+v", gamepadID, gamepadState))
 		}
