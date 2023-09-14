@@ -176,6 +176,9 @@ From the DEVPATH extracted from the received message, the corresponding `libevde
 ## Helpful References
 
 https://documentation.suse.com/sles/12-SP5/html/SLES-all/cha-udev.html
+
 https://insujang.github.io/2018-11-27/udev-device-manager-for-the-linux-kernel-in-userspace/
+
 https://github.com/systemd/systemd/blob/main/src/libudev/libudev-monitor.c
+
 https://github.com/pilebones/go-udev
