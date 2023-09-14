@@ -10,8 +10,10 @@ import (
 	"os"
 	"regexp"
 	"strconv"
+	"sync"
+	"time"
 
-	"github.com/bendahl/uinput"
+	"github.com/JohnCMcDonough/uinput"
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
 )
@@ -23,8 +25,9 @@ var shouldCreateGamepads = stringShouldCreateGamepads != "false"
 
 type GamepadHub struct {
 	gamepads [MAX_GAMEPADS]uinput.Gamepad
-	vendorId uint16
-	deviceId uint16
+	VendorId uint16
+	DeviceId uint16
+	lock     sync.Mutex
 	// sock     io.ReadWriteCloser
 	// enc      *uevent.Encoder
 	mqtt.HookBase
@@ -38,6 +41,12 @@ func (h *GamepadHub) Provides(b byte) bool {
 	return bytes.Contains([]byte{
 		mqtt.OnPublish,
 	}, []byte{b})
+}
+
+func (h *GamepadHub) GetGamepads() []uinput.Gamepad {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+	return h.gamepads[:]
 }
 
 func (h *GamepadHub) Init(config any) error {
@@ -60,23 +69,25 @@ func (h *GamepadHub) Init(config any) error {
 	if vendorIdString != "" {
 		i, err := strconv.ParseInt(vendorIdString, 10, 16)
 		if err != nil {
-			h.vendorId = uint16(i)
-		} else {
-			h.vendorId = 3
+			h.VendorId = uint16(i)
 		}
+	} else {
+		h.VendorId = 3
 	}
 	if deviceIdString != "" {
 		i, err := strconv.ParseInt(deviceIdString, 10, 16)
 		if err != nil {
-			h.deviceId = uint16(i)
-		} else {
-			h.deviceId = 4
+			h.DeviceId = uint16(i)
 		}
+	} else {
+		h.DeviceId = 4
 	}
 
 	if shouldCreateGamepads {
 		for i := 0; i < len(h.gamepads); i++ {
+			h.lock.Lock()
 			gamepad, err := createGamepad(h, i)
+			time.Sleep(time.Second * 1)
 			if err != nil {
 				h.Log.Error().Err(err).Msg("Failed to create gamepad... aborting")
 				for j := i - 1; j >= 0; j-- {
@@ -86,6 +97,7 @@ func (h *GamepadHub) Init(config any) error {
 				return err
 			}
 			h.gamepads[i] = gamepad
+			h.lock.Unlock()
 		}
 	} else {
 		h.Log.Warn().Msg("Skipping gamepad init due to CREATE_GAMEPADS = false")
@@ -101,15 +113,10 @@ func closeGamepad(h *GamepadHub, i int) error {
 }
 
 func createGamepad(h *GamepadHub, i int) (uinput.Gamepad, error) {
-	gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), h.vendorId, h.deviceId)
+	gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), h.VendorId, uint16(i))
 	if err != nil {
 		return nil, err
 	}
-
-	// dev := unix.Mkdev();
-	// syscall.Mknod(path, mode, dev)
-
-	// uevent := uevent.NewUEvent("add", "")
 
 	return gamepad, nil
 }
@@ -201,5 +208,6 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 
 func NewGamepadHub() *GamepadHub {
 	hub := new(GamepadHub)
+
 	return hub
 }

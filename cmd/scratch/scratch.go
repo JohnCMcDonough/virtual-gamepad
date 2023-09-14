@@ -4,13 +4,13 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"os"
 	"os/signal"
 	"syscall"
 
 	"github.com/JohnCMcDonough/virtual-gamepad/pkg/uevent"
+	"github.com/pilebones/go-udev/netlink"
 )
 
 func main() {
@@ -18,46 +18,59 @@ func main() {
 	sigs := make(chan os.Signal, 1)
 	done := make(chan bool, 1)
 	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
-	go func() {
-		<-sigs
-		done <- true
-	}()
 
-	decoding := make(chan bool, 1)
+	var mode netlink.Mode
 
-	sock, err := uevent.NewSocket()
-	if err != nil {
-		log.Fatalf("Unable to open udev socket %v", err)
+	if os.Getenv("KERNEL_MODE") == "true" {
+		mode = netlink.KernelEvent
+		log.Default().Printf("Running in Kernel mode")
+	} else {
+		mode = netlink.UdevEvent
+		log.Default().Printf("Running in Udev mode")
+
 	}
-	defer sock.Close()
+
+	udevConn, err := uevent.NetUdevNetlink(mode)
+
+	if err != nil {
+		log.Fatalf("Unable to connect to kernel udev netlink %v", err)
+	}
+
+	eventChannel := make(chan netlink.UEvent, 1)
+	errorChannel := make(chan error, 1)
+	monitorCancel := udevConn.Monitor(eventChannel, errorChannel, nil)
 
 	go func() {
-		log.Default().Println("Creating a new decoder!")
-		dec := uevent.NewDecoder(sock)
-
-		decoding <- true
 		for {
-			evt, err := dec.Decode()
-			if err != nil {
-				log.Fatal(err)
+			select {
+			case event := <-eventChannel:
+				uevent.PrintUEvent(event)
+			case <-sigs:
+				done <- true
+				close(monitorCancel)
+				return
 			}
-			fmt.Println(evt)
 		}
 	}()
 
-	<-decoding
+	// evt := netlink.UEvent{Action: netlink.ADD, KObj: "/dev/input/js0", Env: map[string]string{
+	// 	"ACTION":            "add",
+	// 	"DEVNAME":           "/dev/input/js0",
+	// 	"DEVPATH":           "/devices/virtual/input/input343/js0",
+	// 	"ID_INPUT":          "1",
+	// 	"ID_INPUT_JOYSTICK": "1",
+	// 	"MAJOR":             "13",
+	// 	"MINOR":             "76",
+	// 	"SEQNUM":            "13848",
+	// 	"SUBSYSTEM":         "input",
+	// 	"USEC_INITIALIZED":  "1486458286858",
+	// }}
 
-	enc := uevent.NewEncoder(sock)
-
-	evt := uevent.NewUEvent("add", "/class/input/input9/mouse2", nil)
-	b := enc.Encode(evt)
-
-	_, err = sock.Write(b)
+	// err = udevConn.Write(evt)
 
 	if err != nil {
-		log.Fatalf("Unable to write event to socket %v", err)
+		log.Default().Printf("Failed to write udev action: %v", err)
 	}
-	log.Printf("Wrote entire message!")
 
 	<-done
 

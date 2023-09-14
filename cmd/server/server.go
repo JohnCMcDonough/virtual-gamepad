@@ -4,6 +4,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"os"
 	"os/signal"
@@ -43,6 +44,9 @@ func main() {
 	}
 
 	gamepadHub := input.NewGamepadHub()
+	backgroundCtx, cancelFn := context.WithCancel(context.Background())
+	gamepadWatcher := input.NewGamepadWatcher(backgroundCtx, gamepadHub)
+	gamepadWatcher.Watch(backgroundCtx)
 
 	err = server.AddHook(gamepadHub, nil)
 
@@ -58,7 +62,6 @@ func main() {
 	}()
 
 	<-done
-
+	cancelFn()
 	server.Close()
-
 }
