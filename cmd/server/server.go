@@ -34,12 +34,13 @@ func main() {
 	_ = server.AddHook(new(auth.AllowHook), nil)
 
 	// Create a WebSocket listener on a standard port.
-	// ws := listeners.NewWebsocket("ws1", ":8080", nil)
-	// err := server.AddListener(ws)
-	tcp := listeners.NewTCP("tcp1", ":1883", nil)
-	err := server.AddListener(tcp)
+	ws := listeners.NewWebsocket("ws1", ":8080", nil)
+	if err := server.AddListener(ws); err != nil {
+		log.Fatal(err)
+	}
 
-	if err != nil {
+	tcp := listeners.NewTCP("tcp1", ":1883", nil)
+	if err := server.AddListener(tcp); err != nil {
 		log.Fatal(err)
 	}
 
@@ -48,9 +49,7 @@ func main() {
 	gamepadWatcher := input.NewGamepadWatcher(backgroundCtx, gamepadHub)
 	gamepadWatcher.Watch(backgroundCtx)
 
-	err = server.AddHook(gamepadHub, nil)
-
-	if err != nil {
+	if err := server.AddHook(gamepadHub, nil); err != nil {
 		log.Fatal(err)
 	}
 
