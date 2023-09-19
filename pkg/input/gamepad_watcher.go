@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"os"
 	"strconv"
 	"strings"
 	"syscall"
@@ -109,11 +110,22 @@ func (w *GamepadWatcher) ProcessEvent(ctx context.Context, evt netlink.UEvent) e
 			return nil
 		}
 
+		if err, _ := os.Stat(devName); err != nil {
+			// file exists
+			if err2 := os.Remove(devName); err2 != nil {
+				return fmt.Errorf("failed to remove existing binding for %s: %v", devName, err)
+			}
+		}
+
 		dev := unix.Mkdev(uint32(major), uint32(minor))
-		err = syscall.Mknod(devName, syscall.S_IFCHR|0o666, int(dev))
-		log.Default().Printf("Running mknod %v with %o %d:%d", devName, syscall.S_IFCHR|0o666, major, minor)
+		err = syscall.Mknod(devName, syscall.S_IFCHR|0o777, int(dev))
+		log.Default().Printf("Running mknod %v with %o %d:%d", devName, syscall.S_IFCHR|0o777, major, minor)
 		if err != nil {
 			return fmt.Errorf("failed to mknod: %v", err)
+		}
+
+		if err := os.Chmod(devName, syscall.S_IFCHR|0o777); err != nil {
+			return fmt.Errorf("failed to set correct permissions on file")
 		}
 
 		w.mknodPaths = append(w.mknodPaths, devName)

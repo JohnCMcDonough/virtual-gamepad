@@ -78,7 +78,7 @@ func (h *GamepadHub) Init(config any) error {
 			h.VendorId = uint16(i)
 		}
 	} else {
-		h.VendorId = 3
+		h.VendorId = 0x045E
 	}
 	if deviceIdString != "" {
 		i, err := strconv.ParseInt(deviceIdString, 10, 16)
@@ -86,7 +86,7 @@ func (h *GamepadHub) Init(config any) error {
 			h.DeviceId = uint16(i)
 		}
 	} else {
-		h.DeviceId = 4
+		h.DeviceId = 0x02D1
 	}
 
 	if shouldCreateGamepads {
