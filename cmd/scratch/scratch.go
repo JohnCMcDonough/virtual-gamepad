@@ -9,7 +9,7 @@ import (
 	"os/signal"
 	"syscall"
 
-	"github.com/JohnCMcDonough/virtual-gamepad/pkg/uevent"
+	"github.com/JohnCMcDonough/virtual-gamepad/pkg/udev"
 	"github.com/pilebones/go-udev/netlink"
 )
 
@@ -30,7 +30,7 @@ func main() {
 
 	}
 
-	udevConn, err := uevent.NetUdevNetlink(mode)
+	udevConn, err := udev.NewUdevNetlink(mode)
 
 	if err != nil {
 		log.Fatalf("Unable to connect to kernel udev netlink %v", err)
@@ -44,7 +44,7 @@ func main() {
 		for {
 			select {
 			case event := <-eventChannel:
-				uevent.PrintUEvent(event)
+				udev.PrintUEvent(event)
 			case <-sigs:
 				done <- true
 				close(monitorCancel)

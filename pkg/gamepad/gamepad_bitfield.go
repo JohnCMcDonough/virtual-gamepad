@@ -1,7 +1,4 @@
-//go:build linux
-// +build linux
-
-package input
+package gamepad
 
 import (
 	"encoding/binary"
@@ -91,4 +88,28 @@ func (b *GamepadBitfield) UnmarshalBinary(data []byte) error {
 	b.AxisRightTrigger = math.Float32frombits(binary.LittleEndian.Uint32(data[22:26]))
 
 	return nil
+}
+
+func (b *GamepadBitfield) ToString() string {
+	toReturn := ""
+	toReturn += fmt.Sprintf("Y=%v ", b.ButtonNorth)
+	toReturn += fmt.Sprintf("A=%v ", b.ButtonSouth)
+	toReturn += fmt.Sprintf("X=%v ", b.ButtonWest)
+	toReturn += fmt.Sprintf("B=%v ", b.ButtonEast)
+	toReturn += fmt.Sprintf("LB=%v ", b.ButtonBumperLeft)
+	toReturn += fmt.Sprintf("RB=%v ", b.ButtonBumperRight)
+	toReturn += fmt.Sprintf("TL=%v ", b.ButtonThumbLeft)
+	toReturn += fmt.Sprintf("TR=%v ", b.ButtonThumbRight)
+	toReturn += fmt.Sprintf("START=%v ", b.ButtonSelect)
+	toReturn += fmt.Sprintf("SELECT=%v ", b.ButtonStart)
+	toReturn += fmt.Sprintf("UP=%v ", b.ButtonDpadUp)
+	toReturn += fmt.Sprintf("DOWN=%v ", b.ButtonDpadDown)
+	toReturn += fmt.Sprintf("LEFT=%v ", b.ButtonDpadLeft)
+	toReturn += fmt.Sprintf("RIGHT=%v ", b.ButtonDpadRight)
+	toReturn += fmt.Sprintf("MODE=%v ", b.ButtonMode)
+	toReturn += fmt.Sprintf("LS=(%v,%v) ", b.AxisLeftX, b.AxisLeftY)
+	toReturn += fmt.Sprintf("RS=(%v,%v) ", b.AxisRightX, b.AxisRightY)
+	toReturn += fmt.Sprintf("LT=(%v) ", b.AxisLeftTrigger)
+	toReturn += fmt.Sprintf("RT=(%v) ", b.AxisRightTrigger)
+	return toReturn
 }

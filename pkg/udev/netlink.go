@@ -1,4 +1,4 @@
-package uevent
+package udev
 
 import (
 	"io"
@@ -7,12 +7,12 @@ import (
 	netlink "github.com/pilebones/go-udev/netlink"
 )
 
-type UdevEventConnection struct {
+type UDevNetlinkConnection struct {
 	closed bool
 	netlink.UEventConn
 }
 
-func (c *UdevEventConnection) Write(event netlink.UEvent) (err error) {
+func (c *UDevNetlinkConnection) Write(event netlink.UEvent) (err error) {
 	data := event.Bytes()
 	err = syscall.Sendto(c.Fd, data, 0, &c.Addr)
 	// If the underlying socket has been closed with Reader.Close()
@@ -28,7 +28,7 @@ func (c *UdevEventConnection) Write(event netlink.UEvent) (err error) {
 	return
 }
 
-func (c *UdevEventConnection) Close() error {
+func (c *UDevNetlinkConnection) Close() error {
 	if c.closed {
 		// Already closed, nothing to do
 		return nil
@@ -37,8 +37,8 @@ func (c *UdevEventConnection) Close() error {
 	return syscall.Close(c.Fd)
 }
 
-func NetUdevNetlink(mode netlink.Mode) (*UdevEventConnection, error) {
-	conn := &UdevEventConnection{}
+func NewUdevNetlink(mode netlink.Mode) (*UDevNetlinkConnection, error) {
+	conn := &UDevNetlinkConnection{}
 	err := conn.Connect(mode)
 	return conn, err
 }
