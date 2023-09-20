@@ -1,20 +1,21 @@
-//go:build linux
-// +build linux
-
 package input
 
 import (
 	"bytes"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"os"
 	"regexp"
 	"strconv"
 	"sync"
 
-	"github.com/JohnCMcDonough/uinput"
+	"github.com/JohnCMcDonough/virtual-gamepad/pkg/gamepad"
+	"github.com/JohnCMcDonough/virtual-gamepad/pkg/logger"
+	"github.com/JohnCMcDonough/virtual-gamepad/pkg/udev"
 	mqtt "github.com/mochi-mqtt/server/v2"
 	"github.com/mochi-mqtt/server/v2/packets"
+	"github.com/rs/zerolog"
 )
 
 var MAX_GAMEPADS int = 4
@@ -23,12 +24,12 @@ var stringShouldCreateGamepads, _ = os.LookupEnv("CREATE_GAMEPADS")
 var shouldCreateGamepads = stringShouldCreateGamepads != "false"
 
 type GamepadHub struct {
-	gamepads []uinput.Gamepad
+	gamepads []*gamepad.VirtualGamepad
 	VendorId uint16
 	DeviceId uint16
 	lock     sync.Mutex
-	// sock     io.ReadWriteCloser
-	// enc      *uevent.Encoder
+	l        zerolog.Logger
+	udev     *udev.UDev
 	mqtt.HookBase
 }
 
@@ -45,29 +46,25 @@ func (h *GamepadHub) Provides(b byte) bool {
 
 // OnConnect is called when a new client connects.
 func (h *GamepadHub) OnConnect(cl *mqtt.Client, pk packets.Packet) error {
-	h.Log.Info().Msgf("Received mqtt connection from %v", cl.Net.Conn.RemoteAddr().String())
+	h.l.Info().Msgf("Received mqtt connection from %v", cl.Net.Conn.RemoteAddr().String())
 	return nil
 }
 
-func (h *GamepadHub) GetGamepads() []uinput.Gamepad {
+func (h *GamepadHub) GetGamepads() []*gamepad.VirtualGamepad {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 	return h.gamepads[:]
 }
 
 func (h *GamepadHub) Init(config any) error {
-	h.Log.Info().Msg("GamepadHub Initialized")
+	h.l.Info().Msg("GamepadHub Initialized")
 
 	var err error
 
-	// h.sock, err = uevent.NewSocket()
-
 	if err != nil {
-		h.Log.Err(err).Msg("There was an error opening the udev socket")
+		h.l.Err(err).Msg("There was an error opening the udev socket")
 		return err
 	}
-
-	// h.enc = uevent.NewEncoder(h.sock)
 
 	vendorIdString := os.Getenv("VIRT_DEVICE_ID")
 	deviceIdString := os.Getenv("VIRT_DEVICE_VENDOR")
@@ -91,64 +88,29 @@ func (h *GamepadHub) Init(config any) error {
 
 	if shouldCreateGamepads {
 		for i := 0; i < len(h.gamepads); i++ {
-			h.lock.Lock()
-			gamepad, err := createGamepad(h, i)
-			if err != nil {
-				h.Log.Error().Err(err).Msg("Failed to create gamepad... aborting")
-				for j := i - 1; j >= 0; j-- {
-					h.Log.Error().Msg(fmt.Sprintf("Closing gamepad %d", j))
-					closeGamepad(h, i)
-				}
-				return err
+			if gamepad, err := gamepad.CreateVirtualGamepad(h.udev, i, int16(h.VendorId), int16(h.DeviceId)); err != nil {
+				h.l.Error().Err(err).Msgf("Failed to create Gamepad %v", i)
+			} else {
+				h.gamepads[i] = gamepad
 			}
-			h.gamepads[i] = gamepad
-			h.lock.Unlock()
 		}
 	} else {
-		h.Log.Warn().Msg("Skipping gamepad init due to CREATE_GAMEPADS = false")
+		h.l.Warn().Msg("Skipping gamepad init due to CREATE_GAMEPADS = false")
 	}
 
 	return nil
 }
 
-func closeGamepad(h *GamepadHub, i int) error {
-	err := h.gamepads[i].Close()
-
-	return err
-}
-
-func createGamepad(h *GamepadHub, i int) (uinput.Gamepad, error) {
-	gamepad, err := uinput.CreateGamepad("/dev/uinput", []byte(fmt.Sprintf("Gamepad %d", i+1)), h.VendorId, uint16(i))
-	if err != nil {
-		return nil, err
-	}
-
-	return gamepad, nil
-}
-
 func (h *GamepadHub) Stop() error {
-	h.Log.Info().Msg("GamepadHub Stopped")
-
+	h.l.Info().Msg("GamepadHub Stopped")
 	return nil
 }
 
 var topicRegex = regexp.MustCompile(`^/gamepad/(\d+)/([^/]+)$`)
 
-func (h *GamepadHub) setButtonState(gamepad uinput.Gamepad, key int, pressed bool) {
-	var err error
-	if pressed {
-		err = gamepad.ButtonDown(key)
-	} else {
-		err = gamepad.ButtonUp(key)
-	}
-	if err != nil {
-		h.Log.Err(err).Msg(fmt.Sprintf("Unable to set button state for gamepad %d %v", key, pressed))
-	}
-}
-
 // /gamepad/<id>/state
 func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Packet, error) {
-	h.Log.Info().Msg("OnPublish: 0x" + hex.EncodeToString(pk.Payload))
+	h.l.Debug().Msg("OnPublish: 0x" + hex.EncodeToString(pk.Payload))
 
 	// evaluate regex and find all matches
 	topicComps := topicRegex.FindStringSubmatch(pk.TopicName)
@@ -157,65 +119,62 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 		return pk, nil // the message wasn't meant for us
 	}
 
-	h.Log.Info().Msg(fmt.Sprintf("Handling message for Gamepad ID %s with action %s", topicComps[1], topicComps[2]))
+	h.l.Info().Msg(fmt.Sprintf("Handling message for Gamepad ID %s with action %s", topicComps[1], topicComps[2]))
 
 	// get the gamepad id as an int
 	gamepadID, err := strconv.Atoi(topicComps[1])
 	if err != nil || gamepadID < 0 || gamepadID >= MAX_GAMEPADS {
-		h.Log.Warn().Msg(fmt.Sprintf("Received event for gamepad that doesn't exist %s", topicComps[1]))
+		h.l.Warn().Msg(fmt.Sprintf("Received event for gamepad that doesn't exist %s", topicComps[1]))
 		return pk, nil
 	}
 
-	// get the actual gamepad
-	gamepad := h.gamepads[gamepadID]
+	// get the actual pad
+	pad := h.gamepads[gamepadID]
 	gamepadAction := topicComps[2]
 
 	if gamepadAction == "state" {
 		// unmarshal the payload into a bitfield
-		var gamepadState GamepadBitfield
+		var gamepadState gamepad.GamepadBitfield
 		err := gamepadState.UnmarshalBinary(pk.Payload)
 		if err != nil {
-			h.Log.Err(err).Msg("Invalid payload")
+			h.l.Err(err).Msg("Invalid payload")
 			return pk, nil
 		}
 		if shouldCreateGamepads {
-			h.setButtonState(gamepad, uinput.ButtonNorth, gamepadState.ButtonNorth)
-			h.setButtonState(gamepad, uinput.ButtonSouth, gamepadState.ButtonSouth)
-			h.setButtonState(gamepad, uinput.ButtonWest, gamepadState.ButtonWest)
-			h.setButtonState(gamepad, uinput.ButtonEast, gamepadState.ButtonEast)
-			h.setButtonState(gamepad, uinput.ButtonBumperLeft, gamepadState.ButtonBumperLeft)
-			h.setButtonState(gamepad, uinput.ButtonBumperRight, gamepadState.ButtonBumperRight)
-			h.setButtonState(gamepad, uinput.ButtonThumbLeft, gamepadState.ButtonThumbLeft)
-			h.setButtonState(gamepad, uinput.ButtonThumbRight, gamepadState.ButtonThumbRight)
-			h.setButtonState(gamepad, uinput.ButtonSelect, gamepadState.ButtonSelect)
-			h.setButtonState(gamepad, uinput.ButtonStart, gamepadState.ButtonStart)
-			h.setButtonState(gamepad, uinput.ButtonDpadUp, gamepadState.ButtonDpadUp)
-			h.setButtonState(gamepad, uinput.ButtonDpadDown, gamepadState.ButtonDpadDown)
-			h.setButtonState(gamepad, uinput.ButtonDpadLeft, gamepadState.ButtonDpadLeft)
-			h.setButtonState(gamepad, uinput.ButtonDpadRight, gamepadState.ButtonDpadRight)
-			h.setButtonState(gamepad, uinput.ButtonMode, gamepadState.ButtonMode)
-
-			gamepad.LeftStickMove(gamepadState.AxisLeftX, gamepadState.AxisLeftY)
-			gamepad.RightStickMove(gamepadState.AxisRightX, gamepadState.AxisRightY)
-			// todo use analog triggers later
-			gamepad.LeftTriggerMove(gamepadState.AxisLeftTrigger)
-			gamepad.RightTriggerMove(gamepadState.AxisRightTrigger)
-			h.setButtonState(gamepad, uinput.ButtonTriggerLeft, gamepadState.AxisLeftTrigger > 0.5)
-			h.setButtonState(gamepad, uinput.ButtonTriggerRight, gamepadState.AxisRightTrigger > 0.5)
+			pad.SendInput(gamepadState)
 		} else {
-			h.Log.Info().Msg(fmt.Sprintf("Pad %d state — %+v", gamepadID, gamepadState))
+			h.l.Info().Msg(fmt.Sprintf("Pad %d state — %+v", gamepadID, gamepadState))
 		}
 
 	} else {
 		// do nothing
+		h.l.Debug().Msgf("Received unknown action for gamepad — %v", gamepadAction)
 	}
 
 	return pk, nil
 }
 
+func (h *GamepadHub) Close() error {
+	errs := []error{}
+	for _, vg := range h.GetGamepads() {
+		errs = append(errs, vg.Close())
+	}
+	errs = append(errs, h.udev.Close())
+	return errors.Join(errs...)
+}
+
 func NewGamepadHub() *GamepadHub {
 	hub := new(GamepadHub)
-	hub.gamepads = make([]uinput.Gamepad, MAX_GAMEPADS)
+	hub.gamepads = make([]*gamepad.VirtualGamepad, MAX_GAMEPADS)
+	hub.l = logger.CreateLogger(map[string]string{
+		"Component": "GamepadHub",
+	})
+	if dev, err := udev.CreateUDev(); err != nil {
+		hub.l.Error().Err(err).Msg("Failed to create a connection to udev... aborting")
+		os.Exit(1)
+	} else {
+		hub.udev = dev
+	}
 
 	return hub
 }

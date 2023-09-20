@@ -182,3 +182,7 @@ https://insujang.github.io/2018-11-27/udev-device-manager-for-the-linux-kernel-i
 https://github.com/systemd/systemd/blob/main/src/libudev/libudev-monitor.c
 
 https://github.com/pilebones/go-udev
+
+https://docs.voidlinux.org/config/session-management.html
+
+https://www.freedesktop.org/wiki/Software/systemd/multiseat/

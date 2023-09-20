@@ -4,7 +4,6 @@
 package main
 
 import (
-	"context"
 	"embed"
 	"io/fs"
 	"log"
@@ -50,9 +49,6 @@ func main() {
 	}
 
 	gamepadHub := input.NewGamepadHub()
-	backgroundCtx, cancelFn := context.WithCancel(context.Background())
-	gamepadWatcher := input.NewGamepadWatcher(backgroundCtx, gamepadHub)
-	gamepadWatcher.Watch(backgroundCtx)
 
 	if err := server.AddHook(gamepadHub, nil); err != nil {
 		log.Fatal(err)
@@ -76,20 +72,9 @@ func main() {
 			log.Fatal(err)
 		}
 	}()
-
-	if _, err := os.Stat("/run/udev/control"); os.IsNotExist(err) {
-		server.Log.Warn().Msg("The /run/udev/control file does not exist. Currently running applications may not receive events correctly. Creating...")
-		if err = os.MkdirAll("/run/udev", 0o666); err != nil {
-			server.Log.Err(err).Msg("Failed to create directory /run/udev")
-		}
-		if _, err = os.Create("/run/udev/control"); err != nil {
-			server.Log.Err(err).Msg("Failed to create file /run/udev/control")
-		} else {
-			server.Log.Info().Msg("Created /run/udev/control successfully!")
-		}
-	}
-
 	<-done
-	cancelFn()
+	if err := gamepadHub.Close(); err != nil {
+		gamepadHub.Log.Error("Error closing gamepad hub %v", err)
+	}
 	server.Close()
 }
