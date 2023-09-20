@@ -90,7 +90,9 @@ func (d *Device) WriteUDevDatabaseData() {
 	data += "E:ID_INPUT_JOYSTICK=1\n"
 	data += "E:ID_SERIAL=noserial\n"
 	data += "G:seat"
+	data += "G:uaccess"
 	data += "Q:seat"
+	data += "Q:uaccess"
 	data += "V:1"
 	if err := os.WriteFile(characterDevicePath, []byte(data), 0o755); err != nil {
 		d.l.Error().Err(err).Msgf("Failed to write device database to %s", characterDevicePath)
