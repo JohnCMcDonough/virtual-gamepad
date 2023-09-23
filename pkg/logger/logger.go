@@ -1,11 +1,23 @@
 package logger
 
 import (
+	"os"
+	"strconv"
+
 	"github.com/rs/zerolog"
 )
 
+func getLogLevel() zerolog.Level {
+	var logLevelString, logLevelSet = os.LookupEnv("LOG_LEVEL")
+	if logLevel, err := strconv.ParseInt(logLevelString, 10, 8); err != nil || !logLevelSet {
+		return zerolog.DebugLevel
+	} else {
+		return zerolog.Level(int8(logLevel))
+	}
+}
+
 var baseLogger = zerolog.New(zerolog.NewConsoleWriter()).
-	Level(zerolog.DebugLevel).
+	Level(getLogLevel()).
 	With().
 	Timestamp().
 	Caller().
