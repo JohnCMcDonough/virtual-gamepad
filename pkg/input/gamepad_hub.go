@@ -110,7 +110,7 @@ var topicRegex = regexp.MustCompile(`^/gamepad/(\d+)/([^/]+)$`)
 
 // /gamepad/<id>/state
 func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Packet, error) {
-	h.l.Debug().Msg("OnPublish: 0x" + hex.EncodeToString(pk.Payload))
+	h.l.Trace().MsgFunc(func() string { return "OnPublish: 0x" + hex.EncodeToString(pk.Payload) })
 
 	// evaluate regex and find all matches
 	topicComps := topicRegex.FindStringSubmatch(pk.TopicName)
@@ -119,7 +119,9 @@ func (h *GamepadHub) OnPublish(cl *mqtt.Client, pk packets.Packet) (packets.Pack
 		return pk, nil // the message wasn't meant for us
 	}
 
-	h.l.Info().Msg(fmt.Sprintf("Handling message for Gamepad ID %s with action %s", topicComps[1], topicComps[2]))
+	h.l.Trace().MsgFunc(func() string {
+		return fmt.Sprintf("Handling message for Gamepad ID %s with action %s", topicComps[1], topicComps[2])
+	})
 
 	// get the gamepad id as an int
 	gamepadID, err := strconv.Atoi(topicComps[1])
