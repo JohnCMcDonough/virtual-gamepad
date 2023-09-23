@@ -36,3 +36,17 @@
     transform: rotate(360deg);
   }
 }
+
+.gamepads {
+  display: flex;
+  flex-direction: row;
+  justify-content: space-around;
+  width: 100%;
+  max-width: 800px;
+}
+
+video {
+  object-fit: cover;
+  border: 1px solid white;
+  background: black;
+}
