@@ -10,13 +10,6 @@ const pc = new RTCPeerConnection({
   }]
 });
 
-pc.addTransceiver('video', {
-  direction: 'recvonly',
-})
-pc.addTransceiver('audio', {
-  direction: 'recvonly',
-})
-
 const Video: React.FunctionComponent<{
   width: string,
   height?: string,
@@ -33,19 +26,34 @@ const Video: React.FunctionComponent<{
       return () => { };
     }
 
+    pc.addTransceiver('video', { direction: 'recvonly' });
+    pc.addTransceiver('audio', { direction: 'recvonly' });
+
     pc.ontrack = (event) => {
       console.log('Got track', event.track);
       stream.addTrack(event.track);
       videoRef.current!.srcObject = stream;
     }
 
+    pc.onicecandidate = async (event) => {
+      console.log('onicecandidate', event);
+    }
+
+    pc.onicegatheringstatechange = async () => {
+      switch (pc.iceGatheringState) {
+        case "gathering":
+          console.log("gathering")
+          break;
+        case "complete":
+          await mqttConnection.publishAsync(`webrtc/${sessionId}/offer`, pc.localDescription!.sdp!);
+          break;
+      }
+    }
+
     pc.onnegotiationneeded = async () => {
+      console.log('onnegotiationneeded');
       let offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
-
-      await mqttConnection.publishAsync(`/webrtc/${sessionId}/offer`, offer.sdp!, {
-        retain: true
-      })
     }
 
     pc.onconnectionstatechange = (e) => {
@@ -58,33 +66,38 @@ const Video: React.FunctionComponent<{
       }
     }
 
-    const topic = `/webrtc/${sessionId}/answer`;
+    const topic = `webrtc/${sessionId}/answer`;
     mqttConnection.subscribe(topic);
 
-    const handler: OnMessageCallback = (_, payload) => {
-      pc.setRemoteDescription(new RTCSessionDescription({
-        type: 'answer',
-        sdp: payload.toString(),
-      }))
+    const handler: OnMessageCallback = (payload) => {
+      console.log('Got answer', payload.toString());
+      try {
+        pc.setRemoteDescription(new RTCSessionDescription({
+          type: 'answer',
+          sdp: payload.toString(),
+        }))
+      }
+      catch (e) {
+        console.error(e);
+      }
     }
     mqttEmitter.on(topic, handler);
 
     return () => {
-      mqttEmitter.off(topic, handler);
+      mqttEmitter.removeListener(topic, handler);
       mqttConnection.unsubscribe(topic);
     }
-  }, [videoRef, setDisconnected, mqttConnection, mqttEmitter, sessionId, connecting]);
-
-  if (!mqttConnection || connecting) {
-    return <span>Connecting...</span>
-  }
+  }, [videoRef, setDisconnected, mqttConnection, mqttEmitter, sessionId]);
 
   if (disconnected) {
     return <span>WebRTC has disconnected. Refresh to try again.</span>
   }
 
   return (
-    <video ref={videoRef} width={width} height={height} autoPlay controls={false} playsInline />
+    <>
+      {connecting && <span>Connecting...</span>}
+      <video ref={videoRef} width={width} height={height} autoPlay controls={false} playsInline style={{ display: connecting ? 'hidden' : 'block' }} />
+    </>
   )
 }
 

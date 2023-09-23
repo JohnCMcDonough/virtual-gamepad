@@ -11,7 +11,7 @@ export const MQTTConnectionProvider: React.FunctionComponent<React.PropsWithChil
   useEffect(() => {
     if (!value) {
       // eslint-disable-next-line no-restricted-globals
-      let url = `wss://${location.hostname}:8081/`;
+      let url = `wss://100.64.0.12:8081/`;
       // let url = `wss://localhost:8080/`;
       if (window.location.protocol.indexOf('https:') !== 0) {
         url = url.replace('wss:', 'ws:');
@@ -21,8 +21,8 @@ export const MQTTConnectionProvider: React.FunctionComponent<React.PropsWithChil
       });
       const emitter = new MQTTEmitter();
       client.on('message', emitter.emit.bind(emitter));
-      // client.on('packetsend', console.debug.bind(console, 'mqtt packetsend %o'));
-      // client.on('packetreceive', console.debug.bind(console, 'mqtt packetreceive %o'));
+      client.on('packetsend', p => console.log('mqtt packetsend', p));
+      client.on('packetreceive', p => console.log('mqtt packetreceive', p));
       emitter.onadd = client.subscribe.bind(client);
       emitter.onremove = client.unsubscribe.bind(client);
       setValue({
