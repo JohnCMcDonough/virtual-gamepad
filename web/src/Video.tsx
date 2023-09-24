@@ -76,6 +76,7 @@ const Video: React.FunctionComponent<{
           type: 'answer',
           sdp: payload.toString(),
         }))
+        videoRef.current!.muted = false;
       }
       catch (e) {
         console.error(e);
@@ -96,7 +97,7 @@ const Video: React.FunctionComponent<{
   return (
     <>
       {connecting && <span>Connecting...</span>}
-      <video ref={videoRef} width={width} height={height} autoPlay controls={false} playsInline style={{ display: connecting ? 'hidden' : 'block' }} />
+      <video ref={videoRef} width={width} height={height} autoPlay controls={true} muted playsInline style={{ display: connecting ? 'hidden' : 'block' }} />
     </>
   )
 }
