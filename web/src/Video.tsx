@@ -3,18 +3,22 @@ import React, { useEffect, useRef, useState } from 'react';
 import { useConnection, useEmitter } from './useMqtt';
 import { OnMessageCallback } from 'mqtt/*';
 
-const stream = new MediaStream();
+const audio = new MediaStream();
+const video = new MediaStream();
 const pc = new RTCPeerConnection({
-  iceServers: [{
-    urls: ["stun:stun.l.google.com:19302"]
-  }]
+  // iceServers: [{
+  //   // urls: ["stun:stun.l.google.com:19302"]
+  //   urls: []
+  // }]
 });
 
 const Video: React.FunctionComponent<{
   width: string,
   height?: string,
-}> = ({ width, height }) => {
+  combined?: boolean,
+}> = ({ width, height, combined = false }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
   const [connecting, setConnecting] = useState<boolean>(true);
   const [disconnected, setDisconnected] = useState<boolean>(false);
   const mqttConnection = useConnection();
@@ -31,8 +35,13 @@ const Video: React.FunctionComponent<{
 
     pc.ontrack = (event) => {
       console.log('Got track', event.track);
-      stream.addTrack(event.track);
-      videoRef.current!.srcObject = stream;
+      if (event.track.kind === 'audio' && !combined) {
+        audio.addTrack(event.track);
+        audioRef.current!.srcObject = audio;
+      } else {
+        video.addTrack(event.track);
+        videoRef.current!.srcObject = video;
+      }
     }
 
     pc.onicecandidate = async (event) => {
@@ -77,6 +86,7 @@ const Video: React.FunctionComponent<{
           sdp: payload.toString(),
         }))
         videoRef.current!.muted = false;
+        audioRef.current!.muted = false;
       }
       catch (e) {
         console.error(e);
@@ -97,6 +107,7 @@ const Video: React.FunctionComponent<{
   return (
     <>
       {connecting && <span>Connecting...</span>}
+      <audio ref={audioRef} autoPlay playsInline controls={true} muted></audio>
       <video ref={videoRef} width={width} height={height} autoPlay controls={true} muted playsInline style={{ display: connecting ? 'hidden' : 'block' }} />
     </>
   )
