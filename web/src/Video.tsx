@@ -69,10 +69,10 @@ const Video: React.FunctionComponent<{
     const topic = `webrtc/${sessionId}/answer`;
     mqttConnection.subscribe(topic);
 
-    const handler: OnMessageCallback = (payload) => {
+    const handler: OnMessageCallback = async (payload) => {
       console.log('Got answer', payload.toString());
       try {
-        pc.setRemoteDescription(new RTCSessionDescription({
+        await pc.setRemoteDescription(new RTCSessionDescription({
           type: 'answer',
           sdp: payload.toString(),
         }))
